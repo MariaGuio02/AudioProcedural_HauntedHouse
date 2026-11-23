@@ -1,4 +1,4 @@
-﻿using System.Collections;
+using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
@@ -10,6 +10,7 @@ namespace StealthGame
         public GameEnding gameEnding;
 
         bool m_IsPlayerInRange;
+        
 
         void OnTriggerEnter (Collider other)
         {
@@ -29,6 +30,8 @@ namespace StealthGame
 
         void Update ()
         {
+                        
+
             if (m_IsPlayerInRange)
             {
                 Vector3 direction = player.position - transform.position + Vector3.up;

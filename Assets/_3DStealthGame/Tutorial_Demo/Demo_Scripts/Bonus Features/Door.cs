@@ -13,6 +13,8 @@ namespace StealthGame
 
             if (player == null)
                 return;
+            
+            ProceduralSfx.Play(Sfx.DoorCreak);
 
             if (player.OwnKey(KeyName))
             {

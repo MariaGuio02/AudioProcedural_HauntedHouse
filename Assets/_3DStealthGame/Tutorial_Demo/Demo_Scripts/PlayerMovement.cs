@@ -47,10 +47,7 @@ namespace StealthGame
         
             if (isWalking)
             {
-                if (!m_AudioSource.isPlaying)
-                {
-                    m_AudioSource.Play();
-                }
+                ProceduralSfx.Play(Sfx.Walk);
             }
             else
             {

@@ -16,6 +16,7 @@ namespace StealthGame
                 return;
         
             player.AddKey(KeyName);
+            ProceduralSfx.Play(Sfx.Key);
             Destroy(gameObject);
         }
     }
