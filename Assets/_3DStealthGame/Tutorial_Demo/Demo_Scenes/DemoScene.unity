@@ -1353,6 +1353,67 @@ PrefabInstance:
     m_AddedGameObjects: []
     m_AddedComponents: []
   m_SourcePrefab: {fileID: 100100000, guid: 563ac48ff656d49478fd93213f4c0eb8, type: 3}
+--- !u!1 &464163376
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 464163378}
+  - component: {fileID: 464163377}
+  m_Layer: 0
+  m_Name: AudioManager
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!114 &464163377
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 464163376}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 4ff1c20b94dbea5429846782e6eba46e, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::AudioManager
+  menuSceneName: MainMenu
+  gameSceneName: DemoScene
+  musicVolume: 0.5
+  sfxVolume: 1
+  fadeSeconds: 1.5
+  startVol: 1
+  exitVol: 1
+  winVol: 1
+  loseVol: 1
+  musicDuckLevel: 0.5
+  useTxtWaveTables: 0
+  sineTxt: {fileID: 4900000, guid: 5b09a4c72c218484c98817436542c23d, type: 3}
+  triangleTxt: {fileID: 4900000, guid: baafc1625c58ac54e965cf3dda09da63, type: 3}
+  squareTxt: {fileID: 4900000, guid: 0c4695e68216d014d9b847c4b7ab9315, type: 3}
+  sawTxt: {fileID: 4900000, guid: 3e4ee5f5b1443bf4090ad80e578c0662, type: 3}
+  menuMusic: {fileID: 0}
+  gameMusic: {fileID: 0}
+--- !u!4 &464163378
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 464163376}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 1.74058, y: 0.14301, z: 0.54595}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &480491498
 GameObject:
   m_ObjectHideFlags: 0
@@ -5518,3 +5579,4 @@ SceneRoots:
   - {fileID: 894613339}
   - {fileID: 1466929699}
   - {fileID: 535387111}
+  - {fileID: 464163378}

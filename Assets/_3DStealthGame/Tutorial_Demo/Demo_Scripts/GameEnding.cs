@@ -1,4 +1,4 @@
-﻿using UnityEngine;
+using UnityEngine;
 using UnityEngine.SceneManagement;
 using UnityEngine.UIElements;
 
@@ -20,7 +20,7 @@ namespace StealthGame
 
         private VisualElement m_EndScreen;
         private VisualElement m_CaughtScreen;
-    
+
         //DEMO ADDITION
         private float m_Demo_GameTimer;
         private bool m_Demo_GameTimerIsTicking;
@@ -36,8 +36,8 @@ namespace StealthGame
             m_Demo_GameTimerIsTicking = true;
             Demo_UpdateTimerLabel();
         }
-    
-        void OnTriggerEnter (Collider other)
+
+        void OnTriggerEnter(Collider other)
         {
             if (other.gameObject == player)
             {
@@ -45,39 +45,47 @@ namespace StealthGame
             }
         }
 
-        public void CaughtPlayer ()
+        public void CaughtPlayer()
         {
             m_IsPlayerCaught = true;
         }
 
-        void Update ()
+        void Update()
         {
             if (m_Demo_GameTimerIsTicking)
             {
                 m_Demo_GameTimer += Time.deltaTime;
                 Demo_UpdateTimerLabel();
             }
-        
+
             if (m_IsPlayerAtExit)
             {
-                EndLevel (m_EndScreen, true, exitAudio);
+                EndLevel(m_EndScreen, true, exitAudio, true);
             }
             else if (m_IsPlayerCaught)
             {
-                EndLevel (m_CaughtScreen, true, caughtAudio);
+                EndLevel(m_CaughtScreen, true, caughtAudio, false);
             }
         }
 
-        void EndLevel (VisualElement element, bool doRestart, AudioSource audioSource)
+        void EndLevel(VisualElement element, bool doRestart, AudioSource audioSource, bool isWin)
         {
             m_Demo_GameTimerIsTicking = false;
-        
+
             if (!m_HasAudioPlayed)
             {
-                audioSource.Play();
+                if (AudioManager.Instance != null)
+                {
+                    if (isWin) AudioManager.Instance.PlayWin();
+                    else AudioManager.Instance.PlayLose();
+                }
+                else if (audioSource != null)
+                {
+                    audioSource.Play();
+                }
                 m_HasAudioPlayed = true;
             }
-            
+
             m_Timer += Time.deltaTime;
             element.style.opacity = m_Timer / fadeDuration;
 
