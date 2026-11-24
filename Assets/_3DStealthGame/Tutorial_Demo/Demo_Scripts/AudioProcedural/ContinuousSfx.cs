@@ -8,7 +8,8 @@ public enum ContinuousSfx
     GhostShower,
     GhostElegant,
     Machine,
-    Alarm
+    Alarm,
+    Fire
 }
 
 public class ContinuousProceduralSfx : MonoBehaviour
@@ -136,6 +137,49 @@ public class ContinuousProceduralSfx : MonoBehaviour
         public float stoneNoiseFilter;
 
         public uint stoneRandomState = 987654321;
+
+
+        // ==========================================
+// FUEGO
+// ==========================================
+
+public bool fireEnabled;
+public bool fireInitialized;
+public float fireIntensity = 1f;
+
+public uint fireRandomState = 2463534242;
+
+// Coeficientes de filtros
+public float fireAlphaRumble;
+public float fireAlphaBody;
+public float fireAlphaHiss;
+public float fireAlphaHiss2;
+public float fireGainRumble;
+public float fireGainBody;
+
+// Estados de filtros
+public float fireRumbleLp;
+public float fireBodyLp;
+public float fireHissLp;
+public float fireHissLp2;
+
+// LFOs de parpadeo de la llama
+public double fireLfo1;
+public double fireLfo2;
+public double fireLfo3;
+
+// Chispas
+public bool sparkActive;
+public bool sparkIsPop;
+public float sparkTimer;
+public float sparkElapsed;
+public float sparkDuration;
+public float sparkVolume;
+public float sparkFrequency;
+public double sparkPhase;
+public float sparkNoiseLp;
+
+
         }
 
     // ==================================================
@@ -476,6 +520,24 @@ public class ContinuousProceduralSfx : MonoBehaviour
                 state.targetVolume = 0.5f;
                 break;
             }
+
+            // ------------------------------------------
+            case ContinuousSfx.Fire:
+            {
+                // El fuego se genera con ruido filtrado, no con tones.
+                state.tones = new ToneState[0];
+
+                state.targetVolume = 0.6f;
+                state.smoothing = 1.5f;
+
+                state.fireEnabled = true;
+                state.fireIntensity = 1f;
+                state.sparkTimer = 0.2f;
+
+                break;
+            }
+
+            
         }
 
         return state;
@@ -961,6 +1023,323 @@ private static float GenerateStone(
     return sound * state.stoneVolume;
 }
 
+
+
+
+
+
+// ==================================================
+// FUEGO: LLAMA SUAVE + CHISPAS
+// ==================================================
+private static float GenerateFire(SoundState state, int sampleRate)
+{
+    if (!state.fireEnabled)
+        return 0f;
+
+    // ==================================================
+    // INICIALIZACIÓN
+    // ==================================================
+
+    if (!state.fireInitialized)
+    {
+        // Capas de ruido más cálidas y menos brillantes.
+        state.fireAlphaRumble = LowPassAlpha(120f, sampleRate);
+        state.fireAlphaBody   = LowPassAlpha(650f, sampleRate);
+        state.fireAlphaHiss   = LowPassAlpha(1400f, sampleRate);
+        state.fireAlphaHiss2  = LowPassAlpha(2600f, sampleRate);
+
+        state.fireGainRumble = LowPassGain(state.fireAlphaRumble);
+        state.fireGainBody   = LowPassGain(state.fireAlphaBody);
+
+        state.fireLfo1 = FireRandom(state) * TwoPi;
+        state.fireLfo2 = FireRandom(state) * TwoPi;
+        state.fireLfo3 = FireRandom(state) * TwoPi;
+
+        state.fireInitialized = true;
+    }
+
+    float dt = 1f / sampleRate;
+
+    // ==================================================
+    // LLAMA: VARIACIÓN ORGÁNICA Y SUAVE
+    // ==================================================
+
+    state.fireLfo1 += TwoPi * 0.23 / sampleRate;
+    state.fireLfo2 += TwoPi * 0.57 / sampleRate;
+    state.fireLfo3 += TwoPi * 1.13 / sampleRate;
+
+    if (state.fireLfo1 >= TwoPi) state.fireLfo1 -= TwoPi;
+    if (state.fireLfo2 >= TwoPi) state.fireLfo2 -= TwoPi;
+    if (state.fireLfo3 >= TwoPi) state.fireLfo3 -= TwoPi;
+
+    float flicker =
+        0.78f +
+        0.13f * (float)Math.Sin(state.fireLfo1) +
+        0.07f * (float)Math.Sin(state.fireLfo2) +
+        0.02f * (float)Math.Sin(state.fireLfo3);
+
+    flicker = Mathf.Clamp(flicker, 0.50f, 1f);
+
+    // ==================================================
+    // CAPA 1: RUMOR GRAVE
+    // ==================================================
+
+    state.fireRumbleLp +=
+        state.fireAlphaRumble *
+        (FireNoise(state) - state.fireRumbleLp);
+
+    float rumble =
+        state.fireRumbleLp * state.fireGainRumble;
+
+    // ==================================================
+    // CAPA 2: CUERPO CÁLIDO
+    // ==================================================
+
+    state.fireBodyLp +=
+        state.fireAlphaBody *
+        (FireNoise(state) - state.fireBodyLp);
+
+    float body =
+        state.fireBodyLp * state.fireGainBody;
+
+    // ==================================================
+    // CAPA 3: AIRE SUAVE
+    // ==================================================
+
+    float hissNoise = FireNoise(state);
+
+    state.fireHissLp +=
+        state.fireAlphaHiss *
+        (hissNoise - state.fireHissLp);
+
+    float hiss = hissNoise - state.fireHissLp;
+
+    state.fireHissLp2 +=
+        state.fireAlphaHiss2 *
+        (hiss - state.fireHissLp2);
+
+    hiss = state.fireHissLp2;
+
+    // ==================================================
+    // MEZCLA DE LA LLAMA
+    // ==================================================
+
+    float intensity = Mathf.Clamp01(state.fireIntensity);
+
+    // Predominan los graves y medios cálidos.
+    // El aire está presente, pero es mucho más discreto.
+    float bed =
+        rumble * 0.42f +
+        body   * 0.75f +
+        hiss   * 0.12f;
+
+    bed *= flicker;
+    bed *= 0.65f + 0.35f * intensity;
+
+    // ==================================================
+    // PARTÍCULAS: CREPITACIONES Y BRASAS
+    // ==================================================
+
+    float spark = 0f;
+
+    if (!state.sparkActive)
+    {
+        state.sparkTimer -= dt;
+
+        if (state.sparkTimer <= 0f)
+        {
+            // La mayoría son pequeñas partículas.
+            // Algunas son chasquidos más notorios.
+            state.sparkIsPop = FireRandom(state) < 0.22f;
+
+            float randomSize = FireRandom(state);
+            randomSize *= randomSize;
+
+            if (state.sparkIsPop)
+            {
+                // Chasquido cálido de una pequeña brasa.
+                state.sparkDuration =
+                    Mathf.Lerp(0.018f, 0.045f, FireRandom(state));
+
+                state.sparkFrequency =
+                    Mathf.Lerp(180f, 480f, FireRandom(state));
+
+                state.sparkVolume =
+                    Mathf.Lerp(0.12f, 0.38f, randomSize);
+            }
+            else
+            {
+                // Partícula diminuta, más suave y discreta.
+                state.sparkDuration =
+                    Mathf.Lerp(0.006f, 0.022f, FireRandom(state));
+
+                state.sparkFrequency =
+                    Mathf.Lerp(700f, 1800f, FireRandom(state));
+
+                state.sparkVolume =
+                    Mathf.Lerp(0.035f, 0.18f, randomSize);
+            }
+
+            state.sparkVolume *=
+                0.35f + 0.65f * intensity;
+
+            state.sparkElapsed = 0f;
+            state.sparkPhase = 0.0;
+            state.sparkNoiseLp = 0f;
+            state.sparkActive = true;
+        }
+    }
+
+    // ==================================================
+    // REPRODUCCIÓN DE LA PARTÍCULA
+    // ==================================================
+
+    if (state.sparkActive)
+    {
+        float t = Mathf.Clamp01(
+            state.sparkElapsed /
+            Mathf.Max(0.001f, state.sparkDuration)
+        );
+
+        // Ataque suave para evitar clicks digitales.
+        float attack = Mathf.Clamp01(
+            state.sparkElapsed / 0.0025f
+        );
+
+        float decay = 1f - t;
+
+        // Caída natural.
+        float envelope =
+            attack * decay * decay * decay;
+
+        // Ruido filtrado para que las partículas
+        // no sean un siseo blanco demasiado agresivo.
+        float n = FireNoise(state);
+
+        state.sparkNoiseLp +=
+            0.18f * (n - state.sparkNoiseLp);
+
+        float crackle = n - state.sparkNoiseLp;
+
+        // Resonancia corta y cálida.
+        float frequency = Mathf.Lerp(
+            state.sparkFrequency,
+            state.sparkFrequency * 0.48f,
+            t
+        );
+
+        state.sparkPhase +=
+            TwoPi * frequency / sampleRate;
+
+        if (state.sparkPhase >= TwoPi)
+            state.sparkPhase -= TwoPi;
+
+        float tone = (float)Math.Sin(state.sparkPhase);
+
+        float particle;
+
+        if (state.sparkIsPop)
+        {
+            // Pop: resonancia más grave con poco ruido.
+            particle =
+                tone * 0.75f +
+                crackle * 0.20f;
+        }
+        else
+        {
+            // Partícula: sonido pequeño y ligeramente brillante.
+            particle =
+                crackle * 0.45f +
+                tone * 0.55f;
+        }
+
+        spark =
+            particle *
+            envelope *
+            state.sparkVolume;
+
+        state.sparkElapsed += dt;
+
+        // ==================================================
+        // PROGRAMAR SIGUIENTE PARTÍCULA
+        // ==================================================
+
+        if (state.sparkElapsed >= state.sparkDuration)
+        {
+            state.sparkActive = false;
+
+            // Algunas pequeñas ráfagas de partículas,
+            // intercaladas con pausas naturales.
+            if (FireRandom(state) < 0.22f)
+            {
+                state.sparkTimer =
+                    Mathf.Lerp(0.025f, 0.10f, FireRandom(state));
+            }
+            else
+            {
+                state.sparkTimer =
+                    Mathf.Lerp(0.18f, 1.10f, FireRandom(state));
+            }
+
+            // A menor intensidad, menos partículas.
+            state.sparkTimer /=
+                Mathf.Max(0.35f, intensity);
+        }
+    }
+
+    // ==================================================
+    // RESULTADO
+    // ==================================================
+
+    // El crepitar se mantiene por debajo del cuerpo de la llama.
+    return bed + spark * 0.65f;
+}
+
+
+// ==================================================
+// RANDOM DEL FUEGO
+// ==================================================
+
+private static uint NextFireRandom(SoundState state)
+{
+    uint x = state.fireRandomState;
+
+    x ^= x << 13;
+    x ^= x >> 17;
+    x ^= x << 5;
+
+    state.fireRandomState = x;
+
+    return x;
+}
+
+private static float FireRandom(SoundState state)
+{
+    return NextFireRandom(state) / (float)uint.MaxValue;
+}
+
+private static float FireNoise(SoundState state)
+{
+    return FireRandom(state) * 2f - 1f;
+}
+
+// ==================================================
+// FILTROS
+// ==================================================
+
+private static float LowPassAlpha(
+    float cutoff,
+    int sampleRate)
+{
+    return 1f - (float)Math.Exp(
+        -TwoPi * cutoff / sampleRate
+    );
+}
+
+private static float LowPassGain(float alpha)
+{
+    return Mathf.Sqrt((2f - alpha) / alpha);
+}
     // ==================================================
     // GENERACION DE AUDIO
     // ==================================================
@@ -1148,6 +1527,18 @@ private static float GenerateStone(
             if (state.dropletsEnabled)
             {
                 mixedSample += GenerateDroplet(
+                    state,
+                    _sampleRate
+                );
+            }
+
+            // ------------------------------------------
+            // FUEGO  
+            // ------------------------------------------
+
+            if (state.fireEnabled)
+            {
+                mixedSample += GenerateFire(
                     state,
                     _sampleRate
                 );

@@ -8,6 +8,7 @@ using UnityEngine;
 public enum Sfx
 {
     Walk,
+    WalkCreak,
     Ghost,
     Key,
     DoorCreak,
@@ -174,6 +175,33 @@ public class ProceduralSfx : MonoBehaviour
 
         source.Play();
     }
+
+    private static int _stepsSinceCreak = 99;
+private static float _nextStepTime = 0f;
+
+public static void PlayStep(
+    float volume = 0.5f,
+    float creakChance = 0.15f,
+    int minStepsBetweenCreaks = 3,
+    float stepInterval = 0.33f)
+{
+    // Evita que los pasos se reproduzcan demasiado seguido.
+    if (Time.time < _nextStepTime)
+        return;
+
+    _nextStepTime = Time.time + stepInterval;
+
+    Play(Sfx.Walk, volume, 0.08f);
+
+    _stepsSinceCreak++;
+
+    if (_stepsSinceCreak >= minStepsBetweenCreaks &&
+        Random.value < creakChance)
+    {
+        _stepsSinceCreak = 0;
+        Play(Sfx.WalkCreak, volume * 0.8f, 0.12f);
+    }
+}
 
     public static void PlayLoop(Sfx sfx, float volume = 1f)
     {
@@ -446,6 +474,7 @@ private static void LayerVariableTremolo(
         switch (sfx)
         {
             case Sfx.Walk: return RenderWalk(sr);
+            case Sfx.WalkCreak: return RenderWalkCreak(sr);
             case Sfx.Ghost: return RenderGhost(sr);
             case Sfx.Key: return RenderKey(sr);
             case Sfx.DoorCreak: return RenderDoorCreak(sr);
@@ -468,28 +497,51 @@ private static void LayerVariableTremolo(
     // ============================================================
     // WALK
     // ============================================================
+// Pisada normal sobre madera: golpe grave + "toc" de madera + roce del talón.
 private static float[] RenderWalk(int sr)
+{
+    float[] d = new float[sr / 4];
+
+    // Golpe grave (peso del paso)
+    Tone(d, sr,
+        150f, 60f,
+        0.0, 0.10,
+        0.001f, 0.08f, 0f, 0.02f,
+        0.55f, Pure);
+
+    // Toc de madera (resonancia)
+    Tone(d, sr,
+        260f, 170f,
+        0.0, 0.06,
+        0.001f, 0.045f, 0f, 0.015f,
+        0.20f, Two);
+
+
+    // Click del talón (ruido agudo, muy corto)
+    NoiseBurst(d, sr, 0.0, 0.015,
+        0.0005f, 0.012f, 0f, 0.003f, 0.12f,
+        2800f, true);
+
+    return Finish(d);
+}
+
+// Crujido de madera (tu sonido original). Se suena solo a veces.
+private static float[] RenderWalkCreak(int sr)
 {
     float[] d = new float[sr / 3];
 
-    // Tono original: se conserva.
-    Tone(
-        d, sr,
+    Tone(d, sr,
         400f, 100f,
         0.0, 0.05,
         0.005f, 1f, 0.05f, 0.1f,
-        0.1f, Saw5
-    );
+        0.1f, Saw5);
 
-    Tone(
-        d, sr,
+    Tone(d, sr,
         115f, 55f,
         0.0, 0.07,
         0.001f, 0.025f, 0f, 0.035f,
-        0.22f, Pure
-    );
+        0.22f, Pure);
 
-    // Tremolo del sonido original.
     LayerTremolo(d, sr, 8f, 0.7f);
 
     return Finish(d);

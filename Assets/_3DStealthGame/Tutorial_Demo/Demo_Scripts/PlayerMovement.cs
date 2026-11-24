@@ -47,7 +47,7 @@ namespace StealthGame
         
             if (isWalking)
             {
-                ProceduralSfx.Play(Sfx.Walk);
+                ProceduralSfx.PlayStep();
             }
             else
             {

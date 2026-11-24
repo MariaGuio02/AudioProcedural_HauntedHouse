@@ -2421,6 +2421,11 @@ PrefabInstance:
       propertyPath: m_LocalPosition.z
       value: -2.07
       objectReference: {fileID: 0}
+    - target: {fileID: 3399273305159260794, guid: c126d90fa1fe4ac4abcc6e249c724bf0,
+        type: 3}
+      propertyPath: m_Resource
+      value: 
+      objectReference: {fileID: 0}
     - target: {fileID: 3550139168261621718, guid: c126d90fa1fe4ac4abcc6e249c724bf0,
         type: 3}
       propertyPath: m_StaticEditorFlags
@@ -3363,6 +3368,9 @@ MonoBehaviour:
   - tag: GhostElegant
     sound: 3
     maxDistance: 5
+  - tag: Light
+    sound: 6
+    maxDistance: 2
 --- !u!1001 &1481485496
 PrefabInstance:
   m_ObjectHideFlags: 0

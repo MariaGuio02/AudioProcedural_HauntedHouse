@@ -8,6 +8,7 @@ TagManager:
   - Gargoyle
   - GhostShower
   - GhostElegant
+  - Light
   layers:
   - Default
   - TransparentFX
