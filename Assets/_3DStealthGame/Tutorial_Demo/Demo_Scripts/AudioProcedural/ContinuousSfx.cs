@@ -9,13 +9,13 @@ public enum ContinuousSfx
     GhostElegant,
     Machine,
     Alarm,
-    Fire
+    Wind
 }
 
 public class ContinuousProceduralSfx : MonoBehaviour
 {
     private const double TwoPi = 2.0 * Math.PI;
-    private const int PoolSize = 2;
+    private const int PoolSize = 5;
 
     public static ContinuousProceduralSfx Instance { get; private set; }
 
@@ -179,6 +179,74 @@ public float sparkFrequency;
 public double sparkPhase;
 public float sparkNoiseLp;
 
+// ==========================================
+// NUEVO MOTOR DE FUEGO
+// ==========================================
+
+// Modulación compartida entre capas
+public float fireSlowNoise;
+public float fireFlutterNoise;
+public float fireHissMod;
+
+// Respiración / medios
+public float fireBreathLp;
+public float fireBreathHp;
+
+// Crepitaciones agrupadas
+public float fireCrackleRate;
+public float fireClusterEnergy;
+public float fireAftershockTimer;
+public int fireAftershocks;
+
+// Filtros de chasquidos
+public float fireCrackleLp1;
+public float fireCrackleLp2;
+public float fireCrackleLp3;
+
+// Pop resonante
+public float firePopRing;
+public float firePopRingLp;
+public float firePopBody;
+public double firePopPhase;
+
+// Sizzle después de un pop
+public float fireSizzleTimer;
+public float fireSizzleEnvelope;
+
+
+// ================================================================
+// WIND: VARIACIÓN DE FRECUENCIA
+// ================================================================
+
+public bool windEnabled;
+
+public float windChangeTimer;
+public float windNextChange;
+
+public float windBaseFrequency = 180f;
+public float windTargetFrequency = 180f;
+
+// ================================================================
+// WIND: PEQUEÑOS CHOQUES DE AIRE
+// ================================================================
+
+public float windImpactTimer;
+public float windImpactNextTime;
+
+public bool windImpactActive;
+public float windImpactElapsed;
+public float windImpactDuration;
+
+public float windImpactVolume;
+public float windImpactFrequency;
+
+public double windImpactPhase;
+
+public float windImpactFilter;
+public uint windImpactRandomState = 192837465;
+
+// Permite ráfagas de dos o tres choques cercanos.
+public int windBurstRemaining;
 
         }
 
@@ -522,25 +590,66 @@ public float sparkNoiseLp;
             }
 
             // ------------------------------------------
-            case ContinuousSfx.Fire:
+          
+            case ContinuousSfx.Wind:
             {
-                // El fuego se genera con ruido filtrado, no con tones.
-                state.tones = new ToneState[0];
+                // Capa principal: viento grave y suave
+                ToneState wind = NewTone(180f, 180f, 1f);
 
-                state.targetVolume = 0.6f;
-                state.smoothing = 1.5f;
+                wind.glideSpeed = 0.8f;
 
-                state.fireEnabled = true;
-                state.fireIntensity = 1f;
-                state.sparkTimer = 0.2f;
+                Vibrato(wind, 0.12f, 2.5f);
+                Tremolo(wind, 0.08f, 0.12f);
+
+                Harmonics(wind,
+                    1f,
+                    0.12f,
+                    0.04f
+                );
+
+                // Segunda capa: aire más agudo
+                ToneState windLayer = NewTone(320f, 320f, 0.45f);
+
+                windLayer.glideSpeed = 0.55f;
+
+                Vibrato(windLayer, 0.08f, 4f);
+                Tremolo(windLayer, 0.12f, 0.18f);
+
+                Harmonics(windLayer,
+                    1f,
+                    0.08f,
+                    0.03f
+                );
+
+                state.tones = new ToneState[]
+                {
+                    wind,
+                    windLayer
+                };
+
+                state.targetVolume = 0.65f;
+                state.smoothing = 0.8f;
+
+                // Variación de frecuencia
+                state.windEnabled = true;
+                state.windChangeTimer = 0f;
+                state.windNextChange = 2f;
+
+                state.windBaseFrequency = 180f;
+                state.windTargetFrequency = 180f;
+
+                // Choques de aire
+                state.windImpactTimer = 0f;
+                state.windImpactNextTime = 3f;
+                state.windImpactActive = false;
+                state.windImpactVolume = 0f;
+                state.windImpactRandomState = 192837465;
 
                 break;
             }
-
-            
+        
         }
-
-        return state;
+            return state;
     }
 
     // ==================================================
@@ -810,7 +919,196 @@ public float sparkNoiseLp;
 
 
 
+private void GenerateWind(SoundState state, float sampleRate)
+{
+    if (!state.windEnabled || state.tones == null)
+        return;
 
+    state.windChangeTimer += 1f / sampleRate;
+
+    if (state.windChangeTimer >= state.windNextChange)
+    {
+        state.windChangeTimer = 0f;
+
+        state.windNextChange = RandomWind(state, 2f, 5f);
+
+        state.windTargetFrequency = RandomWind(
+            state,
+            130f,
+            240f
+        );
+
+        state.windBaseFrequency = state.windTargetFrequency;
+    }
+
+    if (state.tones.Length > 0)
+    {
+        state.tones[0].targetFrequency =
+            state.windTargetFrequency;
+
+        state.tones[0].frequency = Mathf.Lerp(
+            state.tones[0].frequency,
+            state.windTargetFrequency,
+            1f - Mathf.Exp(-0.8f / sampleRate)
+        );
+    }
+
+    if (state.tones.Length > 1)
+    {
+        float targetLayer = state.windTargetFrequency * 1.8f;
+
+        state.tones[1].targetFrequency = targetLayer;
+
+        state.tones[1].frequency = Mathf.Lerp(
+            state.tones[1].frequency,
+            targetLayer,
+            1f - Mathf.Exp(-0.6f / sampleRate)
+        );
+    }
+}
+
+private float GenerateWindImpact(
+    SoundState state,
+    float sampleRate)
+{
+    if (!state.windEnabled)
+        return 0f;
+
+    float dt = 1f / sampleRate;
+
+    // ------------------------------------------------------------
+    // PROGRAMACIÓN DE CHOQUES
+    // ------------------------------------------------------------
+
+    if (!state.windImpactActive)
+    {
+        state.windImpactTimer += dt;
+
+        if (state.windImpactTimer >= state.windImpactNextTime)
+        {
+            state.windImpactTimer = 0f;
+
+            state.windImpactActive = true;
+            state.windImpactElapsed = 0f;
+
+            state.windImpactDuration = RandomWind(
+                state,
+                0.12f,
+                0.32f
+            );
+
+            state.windImpactFrequency = RandomWind(
+                state,
+                500f,
+                1400f
+            );
+
+            state.windImpactVolume = RandomWind(
+                state,
+                0.025f,
+                0.065f
+            );
+
+            // Algunas veces se producen pequeños grupos
+            // de dos o tres choques.
+            if (state.windBurstRemaining == 0 &&
+                RandomWind(state, 0f, 1f) > 0.72f)
+            {
+                state.windBurstRemaining =
+                    RandomWind(state, 0f, 1f) > 0.5f ? 2 : 1;
+            }
+        }
+    }
+
+    // ------------------------------------------------------------
+    // GENERACIÓN DEL CHOQUE
+    // ------------------------------------------------------------
+
+    if (!state.windImpactActive)
+        return 0f;
+
+    state.windImpactElapsed += dt;
+
+    float progress = Mathf.Clamp01(
+        state.windImpactElapsed / state.windImpactDuration
+    );
+
+    // Ataque corto y caída progresiva.
+    float envelope = Mathf.Sin(progress * Mathf.PI);
+
+    envelope = Mathf.Pow(envelope, 1.4f);
+
+    // Ruido aleatorio.
+    float noise = RandomWind(state, -1f, 1f);
+
+    // Filtro pasa-bajos para suavizar el ruido.
+    float alpha = LowPassAlpha(
+        state.windImpactFrequency,
+        (int)sampleRate
+    );
+
+    state.windImpactFilter +=
+        alpha * (noise - state.windImpactFilter);
+
+    float impact = state.windImpactFilter *
+                   envelope *
+                   state.windImpactVolume;
+
+    // ------------------------------------------------------------
+    // FINALIZACIÓN Y SIGUIENTE CHOQUE
+    // ------------------------------------------------------------
+
+    if (state.windImpactElapsed >= state.windImpactDuration)
+    {
+        state.windImpactActive = false;
+        state.windImpactElapsed = 0f;
+
+        if (state.windBurstRemaining > 0)
+        {
+            state.windBurstRemaining--;
+
+            state.windImpactNextTime = RandomWind(
+                state,
+                0.08f,
+                0.22f
+            );
+        }
+        else
+        {
+            state.windImpactNextTime = RandomWind(
+                state,
+                2f,
+                6f
+            );
+        }
+    }
+
+    return impact;
+}
+
+private static uint NextWindRandom(SoundState state)
+{
+    uint x = state.windImpactRandomState;
+
+    x ^= x << 13;
+    x ^= x >> 17;
+    x ^= x << 5;
+
+    state.windImpactRandomState = x;
+
+    return x;
+}
+
+private static float RandomWind(
+    SoundState state,
+    float min,
+    float max)
+{
+    float random = NextWindRandom(state) /
+                   (float)uint.MaxValue;
+
+    return Mathf.Lerp(min, max, random);
+}
 
 
 
@@ -1024,305 +1322,6 @@ private static float GenerateStone(
 }
 
 
-
-
-
-
-// ==================================================
-// FUEGO: LLAMA SUAVE + CHISPAS
-// ==================================================
-private static float GenerateFire(SoundState state, int sampleRate)
-{
-    if (!state.fireEnabled)
-        return 0f;
-
-    // ==================================================
-    // INICIALIZACIÓN
-    // ==================================================
-
-    if (!state.fireInitialized)
-    {
-        // Capas de ruido más cálidas y menos brillantes.
-        state.fireAlphaRumble = LowPassAlpha(120f, sampleRate);
-        state.fireAlphaBody   = LowPassAlpha(650f, sampleRate);
-        state.fireAlphaHiss   = LowPassAlpha(1400f, sampleRate);
-        state.fireAlphaHiss2  = LowPassAlpha(2600f, sampleRate);
-
-        state.fireGainRumble = LowPassGain(state.fireAlphaRumble);
-        state.fireGainBody   = LowPassGain(state.fireAlphaBody);
-
-        state.fireLfo1 = FireRandom(state) * TwoPi;
-        state.fireLfo2 = FireRandom(state) * TwoPi;
-        state.fireLfo3 = FireRandom(state) * TwoPi;
-
-        state.fireInitialized = true;
-    }
-
-    float dt = 1f / sampleRate;
-
-    // ==================================================
-    // LLAMA: VARIACIÓN ORGÁNICA Y SUAVE
-    // ==================================================
-
-    state.fireLfo1 += TwoPi * 0.23 / sampleRate;
-    state.fireLfo2 += TwoPi * 0.57 / sampleRate;
-    state.fireLfo3 += TwoPi * 1.13 / sampleRate;
-
-    if (state.fireLfo1 >= TwoPi) state.fireLfo1 -= TwoPi;
-    if (state.fireLfo2 >= TwoPi) state.fireLfo2 -= TwoPi;
-    if (state.fireLfo3 >= TwoPi) state.fireLfo3 -= TwoPi;
-
-    float flicker =
-        0.78f +
-        0.13f * (float)Math.Sin(state.fireLfo1) +
-        0.07f * (float)Math.Sin(state.fireLfo2) +
-        0.02f * (float)Math.Sin(state.fireLfo3);
-
-    flicker = Mathf.Clamp(flicker, 0.50f, 1f);
-
-    // ==================================================
-    // CAPA 1: RUMOR GRAVE
-    // ==================================================
-
-    state.fireRumbleLp +=
-        state.fireAlphaRumble *
-        (FireNoise(state) - state.fireRumbleLp);
-
-    float rumble =
-        state.fireRumbleLp * state.fireGainRumble;
-
-    // ==================================================
-    // CAPA 2: CUERPO CÁLIDO
-    // ==================================================
-
-    state.fireBodyLp +=
-        state.fireAlphaBody *
-        (FireNoise(state) - state.fireBodyLp);
-
-    float body =
-        state.fireBodyLp * state.fireGainBody;
-
-    // ==================================================
-    // CAPA 3: AIRE SUAVE
-    // ==================================================
-
-    float hissNoise = FireNoise(state);
-
-    state.fireHissLp +=
-        state.fireAlphaHiss *
-        (hissNoise - state.fireHissLp);
-
-    float hiss = hissNoise - state.fireHissLp;
-
-    state.fireHissLp2 +=
-        state.fireAlphaHiss2 *
-        (hiss - state.fireHissLp2);
-
-    hiss = state.fireHissLp2;
-
-    // ==================================================
-    // MEZCLA DE LA LLAMA
-    // ==================================================
-
-    float intensity = Mathf.Clamp01(state.fireIntensity);
-
-    // Predominan los graves y medios cálidos.
-    // El aire está presente, pero es mucho más discreto.
-    float bed =
-        rumble * 0.42f +
-        body   * 0.75f +
-        hiss   * 0.12f;
-
-    bed *= flicker;
-    bed *= 0.65f + 0.35f * intensity;
-
-    // ==================================================
-    // PARTÍCULAS: CREPITACIONES Y BRASAS
-    // ==================================================
-
-    float spark = 0f;
-
-    if (!state.sparkActive)
-    {
-        state.sparkTimer -= dt;
-
-        if (state.sparkTimer <= 0f)
-        {
-            // La mayoría son pequeñas partículas.
-            // Algunas son chasquidos más notorios.
-            state.sparkIsPop = FireRandom(state) < 0.22f;
-
-            float randomSize = FireRandom(state);
-            randomSize *= randomSize;
-
-            if (state.sparkIsPop)
-            {
-                // Chasquido cálido de una pequeña brasa.
-                state.sparkDuration =
-                    Mathf.Lerp(0.018f, 0.045f, FireRandom(state));
-
-                state.sparkFrequency =
-                    Mathf.Lerp(180f, 480f, FireRandom(state));
-
-                state.sparkVolume =
-                    Mathf.Lerp(0.12f, 0.38f, randomSize);
-            }
-            else
-            {
-                // Partícula diminuta, más suave y discreta.
-                state.sparkDuration =
-                    Mathf.Lerp(0.006f, 0.022f, FireRandom(state));
-
-                state.sparkFrequency =
-                    Mathf.Lerp(700f, 1800f, FireRandom(state));
-
-                state.sparkVolume =
-                    Mathf.Lerp(0.035f, 0.18f, randomSize);
-            }
-
-            state.sparkVolume *=
-                0.35f + 0.65f * intensity;
-
-            state.sparkElapsed = 0f;
-            state.sparkPhase = 0.0;
-            state.sparkNoiseLp = 0f;
-            state.sparkActive = true;
-        }
-    }
-
-    // ==================================================
-    // REPRODUCCIÓN DE LA PARTÍCULA
-    // ==================================================
-
-    if (state.sparkActive)
-    {
-        float t = Mathf.Clamp01(
-            state.sparkElapsed /
-            Mathf.Max(0.001f, state.sparkDuration)
-        );
-
-        // Ataque suave para evitar clicks digitales.
-        float attack = Mathf.Clamp01(
-            state.sparkElapsed / 0.0025f
-        );
-
-        float decay = 1f - t;
-
-        // Caída natural.
-        float envelope =
-            attack * decay * decay * decay;
-
-        // Ruido filtrado para que las partículas
-        // no sean un siseo blanco demasiado agresivo.
-        float n = FireNoise(state);
-
-        state.sparkNoiseLp +=
-            0.18f * (n - state.sparkNoiseLp);
-
-        float crackle = n - state.sparkNoiseLp;
-
-        // Resonancia corta y cálida.
-        float frequency = Mathf.Lerp(
-            state.sparkFrequency,
-            state.sparkFrequency * 0.48f,
-            t
-        );
-
-        state.sparkPhase +=
-            TwoPi * frequency / sampleRate;
-
-        if (state.sparkPhase >= TwoPi)
-            state.sparkPhase -= TwoPi;
-
-        float tone = (float)Math.Sin(state.sparkPhase);
-
-        float particle;
-
-        if (state.sparkIsPop)
-        {
-            // Pop: resonancia más grave con poco ruido.
-            particle =
-                tone * 0.75f +
-                crackle * 0.20f;
-        }
-        else
-        {
-            // Partícula: sonido pequeño y ligeramente brillante.
-            particle =
-                crackle * 0.45f +
-                tone * 0.55f;
-        }
-
-        spark =
-            particle *
-            envelope *
-            state.sparkVolume;
-
-        state.sparkElapsed += dt;
-
-        // ==================================================
-        // PROGRAMAR SIGUIENTE PARTÍCULA
-        // ==================================================
-
-        if (state.sparkElapsed >= state.sparkDuration)
-        {
-            state.sparkActive = false;
-
-            // Algunas pequeñas ráfagas de partículas,
-            // intercaladas con pausas naturales.
-            if (FireRandom(state) < 0.22f)
-            {
-                state.sparkTimer =
-                    Mathf.Lerp(0.025f, 0.10f, FireRandom(state));
-            }
-            else
-            {
-                state.sparkTimer =
-                    Mathf.Lerp(0.18f, 1.10f, FireRandom(state));
-            }
-
-            // A menor intensidad, menos partículas.
-            state.sparkTimer /=
-                Mathf.Max(0.35f, intensity);
-        }
-    }
-
-    // ==================================================
-    // RESULTADO
-    // ==================================================
-
-    // El crepitar se mantiene por debajo del cuerpo de la llama.
-    return bed + spark * 0.65f;
-}
-
-
-// ==================================================
-// RANDOM DEL FUEGO
-// ==================================================
-
-private static uint NextFireRandom(SoundState state)
-{
-    uint x = state.fireRandomState;
-
-    x ^= x << 13;
-    x ^= x >> 17;
-    x ^= x << 5;
-
-    state.fireRandomState = x;
-
-    return x;
-}
-
-private static float FireRandom(SoundState state)
-{
-    return NextFireRandom(state) / (float)uint.MaxValue;
-}
-
-private static float FireNoise(SoundState state)
-{
-    return FireRandom(state) * 2f - 1f;
-}
-
 // ==================================================
 // FILTROS
 // ==================================================
@@ -1532,13 +1531,11 @@ private static float LowPassGain(float alpha)
                 );
             }
 
-            // ------------------------------------------
-            // FUEGO  
-            // ------------------------------------------
-
-            if (state.fireEnabled)
+            if (state.windEnabled)
             {
-                mixedSample += GenerateFire(
+                GenerateWind(state, _sampleRate);
+
+                mixedSample += GenerateWindImpact(
                     state,
                     _sampleRate
                 );

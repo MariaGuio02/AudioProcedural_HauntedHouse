@@ -504,14 +504,14 @@ private static float[] RenderWalk(int sr)
 
     // Golpe grave (peso del paso)
     Tone(d, sr,
-        150f, 60f,
+        100, 60f,
         0.0, 0.10,
         0.001f, 0.08f, 0f, 0.02f,
         0.55f, Pure);
 
     // Toc de madera (resonancia)
     Tone(d, sr,
-        260f, 170f,
+        200, 170f,
         0.0, 0.06,
         0.001f, 0.045f, 0f, 0.015f,
         0.20f, Two);
@@ -531,16 +531,10 @@ private static float[] RenderWalkCreak(int sr)
     float[] d = new float[sr / 3];
 
     Tone(d, sr,
-        400f, 100f,
+        100, 0,
         0.0, 0.05,
-        0.005f, 1f, 0.05f, 0.1f,
-        0.1f, Saw5);
-
-    Tone(d, sr,
-        115f, 55f,
-        0.0, 0.07,
-        0.001f, 0.025f, 0f, 0.035f,
-        0.22f, Pure);
+        0.005f, 0.5f, 0.05f, 0.1f,
+        0.1f, Two);
 
     LayerTremolo(d, sr, 8f, 0.7f);
 
@@ -574,40 +568,89 @@ private static float[] RenderWalkCreak(int sr)
     // ============================================================
 
     private static float[] RenderKey(int sr)
-    {
-        float[] finalMix = new float[sr / 2 + sr / 4];
+{
+    float[] finalMix = new float[sr / 2 + sr / 4];
 
-        float[] d = new float[sr / 4];
+    // ============================================================
+    // LAYER 1: TONO PRINCIPAL DE LA TECLA
+    // ============================================================
 
-        Tone(
-            d, sr,
-            587.33f, 587.33f,
-            0.0, 0.09,
-            0.003f, 0.07f, 0f, 0.02f,
-            0.35f, Two
-        );
+    float[] key = CreateLayer(finalMix.Length);
 
-        // --------------------------------------------------------
-        // LAYER 3: SPARKLE / AGUDOS
-        // --------------------------------------------------------
+    Tone(
+        key, sr,
+        587.33f, 587.33f,
+        0.0, 0.09,
+        0.003f, 0.07f, 0f, 0.02f,
+        0.35f, Two
+    );
 
-        float[] sparkle = CreateLayer(finalMix.Length);
+    MixLayer(finalMix, key, 1f);
 
-        Tone(
-            sparkle, sr,
-            783.99f, 783.99f,
-            0.18, 0.30,
-            0.005f, 0.25f, 0f, 0.05f,
-            0.12f, Two
-        );
+    // ============================================================
+    // LAYER 2: WHISTLE / SILBIDO
+    // ============================================================
 
-        LayerHighPass(sparkle, sr, 700f);
-        LayerTremolo(sparkle, sr, 12f, 0.2f);
+    float[] whistle = CreateLayer(finalMix.Length);
 
-        MixLayer(finalMix, sparkle, 0.8f);
+    // Silbido ascendente suave.
+    Tone(
+        whistle, sr,
+        1100f, 1850f,
+        0.015, 0.32,
+        0.04f, 0.18f, 0.65f, 0.10f,
+        0.16f, Pure
+    );
 
-        return Finish(d);
-    }
+    // Pequeña caída de frecuencia al final,
+    // para darle un carácter más orgánico.
+    Tone(
+        whistle, sr,
+        1850f, 1450f,
+        0.24, 0.22,
+        0.015f, 0.12f, 0.25f, 0.08f,
+        0.07f, Pure
+    );
+
+    // Ligera modulación del silbido.
+    LayerTremolo(
+        whistle,
+        sr,
+        7f,
+        0.15f
+    );
+
+    MixLayer(finalMix, whistle, 1f);
+
+    // ============================================================
+    // LAYER 3: SPARKLE / AGUDOS
+    // ============================================================
+
+    float[] sparkle = CreateLayer(finalMix.Length);
+
+    Tone(
+        sparkle, sr,
+        783.99f, 783.99f,
+        0.18, 0.30,
+        0.005f, 0.25f, 0f, 0.05f,
+        0.12f, Two
+    );
+
+    LayerHighPass(sparkle, sr, 700f);
+
+    LayerTremolo(
+        sparkle,
+        sr,
+        12f,
+        0.2f
+    );
+
+    MixLayer(finalMix, sparkle, 0.8f);
+
+    // IMPORTANTE: antes retornabas d y perdías
+    // las capas de sparkle que estaban en finalMix.
+    return Finish(finalMix);
+}
 
 
 
