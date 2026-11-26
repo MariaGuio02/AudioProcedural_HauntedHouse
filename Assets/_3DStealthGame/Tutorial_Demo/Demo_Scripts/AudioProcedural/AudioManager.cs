@@ -12,7 +12,7 @@ public class AudioManager : MonoBehaviour
     public string gameSceneName = "DemoScene";
 
     [Header("Volumen")]
-    [Range(0f, 1f)] public float musicVolume = 0.5f;
+    [Range(0f, 1f)] public float musicVolume = 0.1f;
     [Range(0f, 1f)] public float sfxVolume = 1f;
     [Min(0.05f)] public float fadeSeconds = 1.5f;
 

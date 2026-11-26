@@ -531,7 +531,7 @@ private static float[] RenderWalkCreak(int sr)
     float[] d = new float[sr / 3];
 
     Tone(d, sr,
-        100, 0,
+        0, 0,
         0.0, 0.05,
         0.005f, 0.5f, 0.05f, 0.1f,
         0.1f, Two);
